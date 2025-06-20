@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Clicker Leaderboard</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            min-height: 100vh; 
+            background-color: #f4f4f4; 
+        }
+        #game-area {
+            flex: 2; /* Takes 2/3 of the space */
+            background-color: #e0f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer; /* Indicates it's clickable */
+            font-size: 3em;
+            color: #00796b;
+            text-align: center;
+            border-right: 2px solid #ccc;
+        }
+        #leaderboard-area {
+            flex: 1; /* Takes 1/3 of the space */
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        }
+        #leaderboard-area h2 {
+            text-align: center;
+            color: #333;
+            margin-top: 0;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        #leaderboard-list {
+            list-style: none;
+            padding: 0;
+        }
+        #leaderboard-list li {
+            padding: 10px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1em;
+        }
+        #leaderboard-list li:nth-child(odd) {
+            background-color: #f0f0f0;
+        }
+        #leaderboard-list li.me {
+            background-color: #fffacd; /* Light yellow for current player */
+            border-color: #ffeb3b;
+            font-weight: bold;
+        }
+        .player-name {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .player-score {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-area">
+        Click Anywhere to Score!
+        <div id="my-current-score" style="position: absolute; bottom: 20px; font-size: 1.5em; color: #004d40;">Your Score: 0</div>
+    </div>
+
+    <div id="leaderboard-area">
+        <h2>Leaderboard</h2>
+        <ol id="leaderboard-list"></ol>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+    <script>
+        // --- Game Setup ---
+        const gameArea = document.getElementById('game-area');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const myCurrentScoreDisplay = document.getElementById('my-current-score');
+
+        // IMPORTANT: Replace this with YOUR Render backend service URL after you deploy it!
+        // It will look like: "https://your-service-name.onrender.com"
+        const SERVER_URL = 'https://YOUR_RENDER_BACKEND_URL_HERE'; 
+
+        // Connect to the Socket.IO server
+        const socket = io(SERVER_URL);
+
+        let myPlayerId;
+        let myCurrentScore = 0;
+
+        // --- Socket.IO Event Listeners ---
+
+        socket.on('connect', () => {
+            console.log('Connected to leaderboard server!');
+            myPlayerId = socket.id; // Store our own player ID
+            myCurrentScore = 0; // Reset local score on connect
+            myCurrentScoreDisplay.textContent = `Your Score: ${myCurrentScore}`;
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server.');
+            leaderboardList.innerHTML = '<li>Disconnected. Please refresh.</li>';
+        });
+
+        // When the server sends a leaderboard update
+        socket.on('leaderboardUpdate', (leaderboardData) => {
+            console.log('Leaderboard updated:', leaderboardData);
+            updateLeaderboardDisplay(leaderboardData);
+            
+            // Also update our own score display from the data
+            const me = leaderboardData.find(player => player.id === myPlayerId);
+            if (me) {
+                myCurrentScore = me.score;
+                myCurrentScoreDisplay.textContent = `Your Score: ${myCurrentScore}`;
+            }
+        });
+
+        // --- Game Interaction ---
+
+        // When the user clicks the game area, tell the server we scored
+        gameArea.addEventListener('click', () => {
+            if (socket.connected) {
+                socket.emit('clickPoint'); // Tell the server we clicked
+            } else {
+                console.warn('Not connected to server. Cannot score.');
+            }
+        });
+
+        // --- UI Update Function ---
+        function updateLeaderboardDisplay(leaderboard) {
+            leaderboardList.innerHTML = ''; // Clear previous list
+
+            if (leaderboard.length === 0) {
+                leaderboardList.innerHTML = '<li>No players online.</li>';
+                return;
+            }
+
+            leaderboard.forEach(player => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('player-entry');
+                if (player.id === myPlayerId) {
+                    listItem.classList.add('me'); // Highlight our own entry
+                }
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.classList.add('player-name');
+                nameSpan.textContent = player.name;
+
+                const scoreSpan = document.createElement('span');
+                scoreSpan.classList.add('player-score');
+                scoreSpan.textContent = player.score;
+
+                listItem.appendChild(nameSpan);
+                listItem.appendChild(scoreSpan);
+                leaderboardList.appendChild(listItem);
+            });
+        }
+
+        // Initial display
+        updateLeaderboardDisplay([]);
+    </script>
+</body>
+</html>
