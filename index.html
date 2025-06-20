@@ -1,34 +1,39 @@
-<!DOCTYPE html>
+        <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Clicker Leaderboard</title>
+    <title>Multiplayer Clicker Game</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 0; 
-            display: flex; 
-            min-height: 100vh; 
-            background-color: #f4f4f4; 
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            /* Smaller base font size for the body */
+            font-size: 0.9em; 
         }
         #game-area {
-            flex: 2; /* Takes 2/3 of the space */
-            background-color: #e0f7fa;
-            display: flex
-            cursor: pointer; /* Indicates it's clickable */
-            font-size: 1em;
-            color: #00796b;
-            text-align: center;
+            flex: 2; /* Takes 2/3 of the screen */
+            background-color: #add8e6; /* Light blue */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            /* Smaller font size for main game text */
+            font-size: 2.5em; 
+            color: #333;
+            cursor: pointer;
+            user-select: none; /* Prevent text selection on click */
             border-right: 2px solid #ccc;
-            position: relative; /* Needed for absolute child */
-            margin: 60,0;
         }
         #leaderboard-area {
-            flex: 1; /* Takes 1/3 of the space */
+            flex: 1; /* Takes 1/3 of the screen */
             background-color: #ffffff;
             padding: 20px;
             box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto; /* For long leaderboards */
         }
         #leaderboard-area h2 {
             text-align: center;
@@ -36,20 +41,23 @@
             margin-top: 0;
             border-bottom: 2px solid #eee;
             padding-bottom: 10px;
+            /* Smaller font size for leaderboard title */
+            font-size: 1.5em; 
         }
         #leaderboard-list {
             list-style: none;
             padding: 0;
         }
         #leaderboard-list li {
-            padding: 10px;
-            margin-bottom: 5px;
+            padding: 8px; /* Slightly smaller padding */
+            margin-bottom: 4px; /* Slightly smaller margin */
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 4px;
             display: flex;
             justify-content: space-between;
-            font-size: 1.1em;
+            /* Smaller font size for list items */
+            font-size: 0.9em; 
         }
         #leaderboard-list li:nth-child(odd) {
             background-color: #f0f0f0;
@@ -66,24 +74,50 @@
         .player-score {
             color: #28a745;
         }
-        #my-current-score {
-            position: absolute; 
-            bottom: 20px; 
-            left: 0;
-            right: 0;
+        .name-input-section {
+            margin-bottom: 15px; /* Slightly smaller margin */
             text-align: center;
-            font-size: 1.5em; 
-            color: #004d40;
+        }
+        .name-input-section input {
+            padding: 8px; /* Slightly smaller padding */
+            font-size: 0.9em; /* Smaller font size */
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 180px; /* Slightly smaller width */
+        }
+        .name-input-section button {
+            padding: 8px 12px; /* Slightly smaller padding */
+            font-size: 0.9em; /* Smaller font size */
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .game-start-note {
+            font-size: 0.8em; /* Very small text */
+            color: #888; /* Light gray text */
+            margin-top: 20px; /* Space above it */
+            text-align: center;
+            max-width: 300px; /* Keep it from being too wide */
         }
     </style>
 </head>
 <body>
     <div id="game-area">
-    <h5>please note that sometimes the game might take sometime to work</h5><br>
-        <h1>Click Anywhere to Score!</h1>
-       <p align="center"><div id="my-current-score">Your Score: 0</div>
-    </div></p>
+        <div class="name-input-section">
+            <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="15">
+            <button id="setPlayerNameButton">Set Name</button>
+        </div>
 
+        Click Anywhere to Score!
+        <div id="my-current-score" style="margin-top: 20px;">Your Score: 0</div>
+
+        <p class="game-start-note">
+            Please note that sometimes the game will take time to start while the server wakes up.
+        </p>
+    </div>
     <div id="leaderboard-area">
         <h2>Leaderboard</h2>
         <ol id="leaderboard-list"></ol>
@@ -92,28 +126,44 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
     <script>
-        // --- Game Setup ---
         const gameArea = document.getElementById('game-area');
         const leaderboardList = document.getElementById('leaderboard-list');
         const myCurrentScoreDisplay = document.getElementById('my-current-score');
 
-        // IMPORTANT: Replace this with YOUR Render backend service URL after you deploy it!
-        // It will look like: "https://your-service-name.onrender.com"
-        const SERVER_URL = 'https://game-tmih.onrender.com'; 
+        const playerNameInput = document.getElementById('playerNameInput');
+        const setPlayerNameButton = document.getElementById('setPlayerNameButton');
 
-        // Connect to the Socket.IO server
+        // IMPORTANT: Replace this with YOUR Game2 Render backend service URL!
+        const SERVER_URL = 'https://YOUR_GAME2_RENDER_BACKEND_URL_HERE'; // Example: 'https://my-game2-backend.onrender.com'
+
         const socket = io(SERVER_URL);
 
         let myPlayerId;
         let myCurrentScore = 0;
+        let myCurrentName = "Player"; // Default name before custom name is set or loaded
+
+        // Load name from localStorage on page load
+        const storedName = localStorage.getItem('game2PlayerName'); // Use a specific key for this game
+        if (storedName) {
+            playerNameInput.value = storedName;
+            myCurrentName = storedName; // Set local variable for immediate display
+        }
 
         // --- Socket.IO Event Listeners ---
 
         socket.on('connect', () => {
-            console.log('Connected to leaderboard server!');
-            myPlayerId = socket.id; // Store our own player ID
-            myCurrentScore = 0; // Reset local score on connect
-            myCurrentScoreDisplay.textContent = `Your Score: ${myCurrentScore}`;
+            console.log('Connected to server!');
+            myPlayerId = socket.id;
+
+            // Send player's name to the server upon connection
+            if (playerNameInput.value.trim() !== '') {
+                socket.emit('setName', playerNameInput.value.trim());
+            } else {
+                // If no name is set, assign default for input and send
+                playerNameInput.value = `Player_${myPlayerId.substring(0, 4)}`;
+                myCurrentName = playerNameInput.value;
+                socket.emit('setName', myCurrentName); 
+            }
         });
 
         socket.on('disconnect', () => {
@@ -121,33 +171,47 @@
             leaderboardList.innerHTML = '<li>Disconnected. Please refresh.</li>';
         });
 
-        // When the server sends a leaderboard update
         socket.on('leaderboardUpdate', (leaderboardData) => {
             console.log('Leaderboard updated:', leaderboardData);
             updateLeaderboardDisplay(leaderboardData);
-            
-            // Also update our own score display from the data
+
             const me = leaderboardData.find(player => player.id === myPlayerId);
             if (me) {
                 myCurrentScore = me.score;
-                myCurrentScoreDisplay.textContent = `Your Score: ${myCurrentScore}`;
+                // Update myCurrentName if server sends an updated name for us
+                myCurrentName = me.name; 
+                myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: ${myCurrentScore}`;
+            } else {
+                myCurrentScore = 0;
+                myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: 0`;
             }
         });
 
         // --- Game Interaction ---
-
-        // When the user clicks the game area, tell the server we scored
         gameArea.addEventListener('click', () => {
             if (socket.connected) {
-                socket.emit('clickPoint'); // Tell the server we clicked
+                socket.emit('clickPoint');
             } else {
                 console.warn('Not connected to server. Cannot score.');
             }
         });
 
+        // Event Listener for Set Name Button
+        setPlayerNameButton.addEventListener('click', () => {
+            const newName = playerNameInput.value.trim();
+            if (newName.length > 0 && socket.connected) {
+                localStorage.setItem('game2PlayerName', newName); // Save name to browser's local storage
+                myCurrentName = newName; // Update local variable
+                socket.emit('setName', newName); // Send new name to server
+                myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: ${myCurrentScore}`; // Update display immediately
+            } else if (!socket.connected) {
+                console.warn('Not connected to server. Cannot set name.');
+            }
+        });
+
         // --- UI Update Function ---
         function updateLeaderboardDisplay(leaderboard) {
-            leaderboardList.innerHTML = ''; // Clear previous list
+            leaderboardList.innerHTML = '';
 
             if (leaderboard.length === 0) {
                 leaderboardList.innerHTML = '<li>No players online.</li>';
@@ -157,13 +221,14 @@
             leaderboard.forEach(player => {
                 const listItem = document.createElement('li');
                 listItem.classList.add('player-entry');
-                if (player.id === myPlayerId) {
-                    listItem.classList.add('me'); // Highlight our own entry
+                // Highlight our own entry (more robust check)
+                if (player.id === myPlayerId || (player.name === myCurrentName && myCurrentName !== `Player_${myPlayerId.substring(0, 4)}` && myPlayerId)) {
+                    listItem.classList.add('me');
                 }
                 
                 const nameSpan = document.createElement('span');
                 nameSpan.classList.add('player-name');
-                nameSpan.textContent = player.name;
+                nameSpan.textContent = player.name; // Display the name from the server
 
                 const scoreSpan = document.createElement('span');
                 scoreSpan.classList.add('player-score');
@@ -175,8 +240,7 @@
             });
         }
 
-        // Initial display
         updateLeaderboardDisplay([]);
     </script>
 </body>
-</html>
+</html> 
