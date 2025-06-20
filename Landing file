@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enter Your Name - Game2</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+            text-align: center;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        input[type="text"] {
+            width: calc(100% - 22px); /* Account for padding and border */
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .note {
+            margin-top: 20px;
+            font-size: 0.85em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Welcome to Game2!</h1>
+        <p>Please enter your name to start playing:</p>
+        <input type="text" id="playerNameInput" placeholder="Your Name" maxlength="15">
+        <button id="startGameButton">Start Game</button>
+        <p class="note">
+            Your name will be saved in your browser for next time.
+        </p>
+    </div>
+
+    <script>
+        const playerNameInput = document.getElementById('playerNameInput');
+        const startGameButton = document.getElementById('startGameButton');
+        const GAME_PAGE_URL = 'index.html'; // Or 'game.html' if you rename your main game page
+
+        // Load name from localStorage if it exists and pre-fill the input
+        const storedName = localStorage.getItem('game2PlayerName');
+        if (storedName) {
+            playerNameInput.value = storedName;
+        }
+
+        startGameButton.addEventListener('click', () => {
+            const playerName = playerNameInput.value.trim();
+            if (playerName) {
+                // Save the name to localStorage
+                localStorage.setItem('game2PlayerName', playerName);
+                // Redirect to the main game page
+                window.location.href = GAME_PAGE_URL;
+            } else {
+                alert('Please enter your name!');
+            }
+        });
+
+        // Allow pressing Enter key to start the game
+        playerNameInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                startGameButton.click();
+            }
+        });
+    </script>
+</body>
+</html>
