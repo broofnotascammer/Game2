@@ -109,7 +109,7 @@
 </head>
 <body>
     <div id="game-area">
-        <button id="toggle-leaderboard-button">Hide Leaderboard</button>
+        <button id="toggle-leaderboard-button">Hide</button>
         Click Anywhere to Score!
         <div id="my-current-score" style="margin-top: 20px;">Your Score: 0</div>
 
@@ -190,14 +190,15 @@
             }
         });
 
-        // NEW: Leaderboard Toggle Button Event Listener
+        // NEW: Leader
+            board Toggle Button Event Listener
         toggleLeaderboardButton.addEventListener('click', () => {
             leaderboardArea.classList.toggle('hidden');
             if (leaderboardArea.classList.contains('hidden')) {
-                toggleLeaderboardButton.textContent = 'Show Leaderboard';
+                toggleLeaderboardButton.textContent = 'Show';
                 leaderboardArea.style.flex = '0'; // Collapse flex item
             } else {
-                toggleLeaderboardButton.textContent = 'Hide Leaderboard';
+                toggleLeaderboardButton.textContent = 'Hide';
                 leaderboardArea.style.flex = '1'; // Expand flex item
             }
         });
