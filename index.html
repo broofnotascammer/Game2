@@ -20,7 +20,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-size: 1em; /* This was set to 1em. If you want main game text larger, increase this. */
+            font-size: 1em; 
             color: #333;
             cursor: pointer;
             user-select: none;
@@ -31,9 +31,8 @@
             flex: 1; /* Takes 1/3 of the screen */
             background-color: #ffffff;
             padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); /* Slightly adjusted shadow for consistency */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             overflow-y: auto;
-            /* Added for smooth hide/show transition */
             transition: width 0.3s ease-in-out, padding 0.3s ease-in-out, opacity 0.3s ease-in-out; 
             width: 33.33%; /* Default width when visible */
         }
@@ -104,6 +103,40 @@
         #toggle-leaderboard-button:hover {
             background-color: #5a6268;
         }
+
+        /* --- Achievement Popup Styles --- */
+        #achievement-popup {
+            position: fixed;
+            top: 20px; /* Position from top */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50; /* Green */
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            z-index: 1000; /* Bring to front */
+            opacity: 0; /* Start hidden */
+            visibility: hidden; /* Hide from screen readers initially */
+            transition: opacity 0.5s ease-out, top 0.5s ease-out, visibility 0.5s; /* Animation properties */
+            font-size: 1.1em;
+            text-align: center;
+            min-width: 250px;
+            max-width: 90%;
+        }
+        #achievement-popup.show {
+            opacity: 1;
+            visibility: visible;
+            top: 50px; /* Slide down slightly when shown */
+        }
+        #achievement-popup h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.3em;
+        }
+        #achievement-popup p {
+            margin: 0;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -121,6 +154,11 @@
         <ol id="leaderboard-list"></ol>
     </div>
 
+    <div id="achievement-popup">
+        <h3 id="achievement-title"></h3>
+        <p id="achievement-description"></p>
+    </div>
+
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
     <script>
@@ -130,6 +168,11 @@
         const leaderboardArea = document.getElementById('leaderboard-area');
         const toggleLeaderboardButton = document.getElementById('toggle-leaderboard-button');
 
+        // Achievement Popup Elements
+        const achievementPopup = document.getElementById('achievement-popup');
+        const achievementTitle = document.getElementById('achievement-title');
+        const achievementDescription = document.getElementById('achievement-description');
+
         // IMPORTANT: Replace this with YOUR Game2 Render backend service URL!
         const SERVER_URL = 'https://game-tmih.onrender.com'; // Use your actual Game2 backend URL!
 
@@ -138,6 +181,18 @@
         let myPlayerId;
         let myCurrentScore = 0;
         let myCurrentName = "Player"; // Default name, will be overridden from localStorage
+
+        // --- Achievement Data ---
+        const achievements = [
+            { id: 'first_click', name: 'The Journey Begins!', description: 'Score your very first point.', threshold: 1 },
+            { id: 'getting_started', name: 'Getting Started', description: 'Reach 10 points.', threshold: 10 },
+            { id: 'clicker_apprentice', name: 'Clicker Apprentice', description: 'Reach 50 points.', threshold: 50 },
+            { id: 'clicker_master', name: 'Clicker Master', description: 'Reach 100 points.', threshold: 100 },
+            { id: 'grand_clicker', name: 'Grand Clicker', description: 'Reach 500 points.', threshold: 500 }
+        ];
+
+        // Load earned achievements from localStorage
+        let earnedAchievements = JSON.parse(localStorage.getItem('game2Achievements')) || [];
 
         // Read name from localStorage on page load (set by name-entry.html)
         const storedName = localStorage.getItem('game2PlayerName');
@@ -153,8 +208,6 @@
         socket.on('connect', () => {
             console.log('Connected to server!');
             myPlayerId = socket.id;
-
-            // Send the name from localStorage to the server upon connection
             socket.emit('setName', myCurrentName);
         });
 
@@ -169,10 +222,13 @@
             
             const me = leaderboardData.find(player => player.id === myPlayerId);
             if (me) {
+                // Update my current score and name
                 myCurrentScore = me.score;
-                // Use the name received from the server (which should be our stored name)
                 myCurrentName = me.name; 
                 myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: ${myCurrentScore}`;
+
+                // Check for new achievements whenever score updates
+                checkAchievements(myCurrentScore); 
             } else {
                 myCurrentScore = 0;
                 myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: 0`;
@@ -182,7 +238,7 @@
         // --- Game Interaction ---
         gameArea.addEventListener('click', () => {
             if (socket.connected) {
-                socket.emit('clickPoint'); // Tell the server we clicked
+                socket.emit('clickPoint');
             } else {
                 console.warn('Not connected to server. Cannot score.');
             }
@@ -192,15 +248,63 @@
         toggleLeaderboardButton.addEventListener('click', () => {
             leaderboardArea.classList.toggle('hidden');
             if (leaderboardArea.classList.contains('hidden')) {
-                toggleLeaderboardButton.textContent = 'Show'; // Simplified text
+                toggleLeaderboardButton.textContent = 'Show';
                 leaderboardArea.style.flex = '0'; 
             } else {
-                toggleLeaderboardButton.textContent = 'Hide'; // Simplified text
+                toggleLeaderboardButton.textContent = 'Hide';
                 leaderboardArea.style.flex = '1';
             }
         });
 
-        // --- UI Update Function ---
+        // --- Achievement Functions ---
+
+        /**
+         * Checks if the player has earned any new achievements based on their current score.
+         * @param {number} currentScore - The player's current score.
+         */
+        function checkAchievements(currentScore) {
+            achievements.forEach(achievement => {
+                // Check if score meets threshold AND if achievement hasn't been earned yet
+                if (currentScore >= achievement.threshold && !earnedAchievements.includes(achievement.id)) {
+                    earnedAchievements.push(achievement.id);
+                    localStorage.setItem('game2Achievements', JSON.stringify(earnedAchievements)); // Save to localStorage
+                    showAchievementPopup(achievement);
+                }
+            });
+        }
+
+        /**
+         * Displays an achievement popup with animation.
+         * @param {object} achievement - The achievement object to display.
+         */
+        let popupTimeout; // To clear previous timeouts if multiple achievements are earned quickly
+        function showAchievementPopup(achievement) {
+            // Clear any existing timeout to prevent popups from overlapping weirdly
+            if (popupTimeout) {
+                clearTimeout(popupTimeout);
+                achievementPopup.classList.remove('show'); // Immediately hide previous to restart animation
+                // A small delay to allow CSS to reset before showing new one
+                setTimeout(() => {
+                    displayPopupContent(achievement);
+                }, 50); 
+            } else {
+                displayPopupContent(achievement);
+            }
+        }
+
+        function displayPopupContent(achievement) {
+            achievementTitle.textContent = achievement.name;
+            achievementDescription.textContent = achievement.description;
+            achievementPopup.classList.add('show'); // Trigger show animation
+
+            // Hide the popup after 4 seconds
+            popupTimeout = setTimeout(() => {
+                achievementPopup.classList.remove('show'); // Trigger hide animation
+                popupTimeout = null;
+            }, 4000); 
+        }
+
+        // --- UI Update Function (This part was cut off last time) ---
         function updateLeaderboardDisplay(leaderboard) {
             leaderboardList.innerHTML = ''; 
 
@@ -231,6 +335,7 @@
             });
         }
 
+        // Initial update for empty leaderboard
         updateLeaderboardDisplay([]);
     </script>
 </body>
