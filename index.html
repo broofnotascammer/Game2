@@ -313,4 +313,199 @@
             { id: 'first_click', name: 'The Journey Begins!', description: 'Score your very first point.', threshold: 1, category: 'Click Milestones' },
             { id: 'getting_started', name: 'Getting Started', description: 'Reach 10 points.', threshold: 10, category: 'Click Milestones' },
             { id: 'clicker_apprentice', name: 'Clicker Apprentice', description: 'Reach 50 points.', threshold: 50, category: 'Click Milestones' },
-            { id: 'clicker_master', name: 'Clicker Master', description: 'Reach 1
+            { id: 'clicker_master', name: 'Clicker Master', description: 'Reach 100 points.', threshold: 100, category: 'Click Milestones' },
+            { id: 'grand_clicker', name: 'Grand Clicker', description: 'Reach 500 points.', threshold: 500, category: 'Click Milestones' },
+            { id: 'supreme_clicker', name: 'Supreme Clicker', description: 'Reach 1000 points.', threshold: 1000, category: 'Click Milestones' }
+            // Add more achievements here!
+        ];
+
+        // Load earned achievements from localStorage
+        let earnedAchievements = JSON.parse(localStorage.getItem('game2Achievements')) || [];
+
+        // Read name from localStorage on page load (set by name-entry.html)
+        const storedName = localStorage.getItem('game2PlayerName');
+        if (storedName) {
+            myCurrentName = storedName;
+        } else {
+            // If somehow direct access without name, redirect back
+            window.location.href = 'name-entry.html'; 
+        }
+
+        // --- Socket.IO Event Listeners ---
+
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+            myPlayerId = socket.id;
+            socket.emit('setName', myCurrentName);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server.');
+            leaderboardList.innerHTML = '<li>Disconnected. Please refresh.</li>';
+        });
+
+        socket.on('leaderboardUpdate', (leaderboardData) => {
+            console.log('Leaderboard updated:', leaderboardData);
+            updateLeaderboardDisplay(leaderboardData);
+            
+            const me = leaderboardData.find(player => player.id === myPlayerId);
+            if (me) {
+                myCurrentScore = me.score;
+                myCurrentName = me.name; 
+                myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: ${myCurrentScore}`;
+                checkAchievements(myCurrentScore); 
+            } else {
+                myCurrentScore = 0;
+                myCurrentScoreDisplay.textContent = `${myCurrentName}'s Score: 0`;
+            }
+        });
+
+        // --- Game Interaction ---
+        gameArea.addEventListener('click', () => {
+            if (socket.connected) {
+                socket.emit('clickPoint');
+            } else {
+                console.warn('Not connected to server. Cannot score.');
+            }
+        });
+
+        // Leaderboard Toggle Button Event Listener
+        toggleLeaderboardButton.addEventListener('click', () => {
+            leaderboardArea.classList.toggle('hidden');
+            if (leaderboardArea.classList.contains('hidden')) {
+                toggleLeaderboardButton.textContent = 'Show';
+                leaderboardArea.style.flex = '0'; 
+            } else {
+                toggleLeaderboardButton.textContent = 'Hide';
+                leaderboardArea.style.flex = '1';
+            }
+        });
+
+        // --- Achievement Popup Functions ---
+
+        /**
+         * Checks if the player has earned any new achievements based on their current score.
+         * @param {number} currentScore - The player's current score.
+         */
+        function checkAchievements(currentScore) {
+            achievements.forEach(achievement => {
+                if (currentScore >= achievement.threshold && !earnedAchievements.includes(achievement.id)) {
+                    earnedAchievements.push(achievement.id);
+                    localStorage.setItem('game2Achievements', JSON.stringify(earnedAchievements));
+                    showAchievementPopup(achievement);
+                }
+            });
+        }
+
+        /**
+         * Displays an achievement popup with animation.
+         * @param {object} achievement - The achievement object to display.
+         */
+        let popupTimeout; 
+        function showAchievementPopup(achievement) {
+            if (popupTimeout) {
+                clearTimeout(popupTimeout);
+                achievementPopup.classList.remove('show');
+                setTimeout(() => {
+                    displayPopupContent(achievement);
+                }, 50); 
+            } else {
+                displayPopupContent(achievement);
+            }
+        }
+
+        function displayPopupContent(achievement) {
+            achievementTitle.textContent = achievement.name;
+            achievementDescription.textContent = achievement.description;
+            achievementPopup.classList.add('show');
+
+            popupTimeout = setTimeout(() => {
+                achievementPopup.classList.remove('show');
+                popupTimeout = null;
+            }, 4000); 
+        }
+
+        // --- View Achievements Button and Display Logic ---
+
+        viewAchievementsButton.addEventListener('click', () => {
+            populateAchievementsDisplay();
+            achievementsDisplayOverlay.classList.add('show');
+        });
+
+        closeAchievementsButton.addEventListener('click', () => {
+            achievementsDisplayOverlay.classList.remove('show');
+        });
+
+        // Close overlay if clicked outside content
+        achievementsDisplayOverlay.addEventListener('click', (event) => {
+            if (event.target === achievementsDisplayOverlay) {
+                achievementsDisplayOverlay.classList.remove('show');
+            }
+        });
+
+        // Function to populate the achievements list
+        function populateAchievementsDisplay() {
+            achievementsList.innerHTML = ''; // Clear previous list
+
+            achievements.forEach(achievement => {
+                const listItem = document.createElement('li');
+                const isEarned = earnedAchievements.includes(achievement.id);
+
+                listItem.classList.add(isEarned ? 'earned' : 'unearned');
+
+                const titleStrong = document.createElement('strong');
+                titleStrong.textContent = achievement.name;
+
+                const descriptionSpan = document.createElement('span');
+                descriptionSpan.textContent = achievement.description;
+
+                const progressSpan = document.createElement('span');
+                progressSpan.classList.add('progress');
+                if (isEarned) {
+                    progressSpan.textContent = "Earned!";
+                } else {
+                    progressSpan.textContent = `Progress: ${myCurrentScore}/${achievement.threshold} points`;
+                }
+
+                listItem.appendChild(titleStrong);
+                listItem.appendChild(descriptionSpan);
+                listItem.appendChild(progressSpan);
+                achievementsList.appendChild(listItem);
+            });
+        }
+
+
+        // --- UI Update Function ---
+        function updateLeaderboardDisplay(leaderboard) {
+            leaderboardList.innerHTML = ''; 
+
+            if (leaderboard.length === 0) {
+                leaderboardList.innerHTML = '<li>No players online.</li>';
+                return;
+            }
+
+            leaderboard.forEach(player => {
+                const listItem = document.createElement('li');
+                listItem.classList.add('player-entry');
+                if (player.id === myPlayerId || (player.name === myCurrentName && myCurrentName !== "Player" && myPlayerId)) {
+                    listItem.classList.add('me');
+                }
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.classList.add('player-name');
+                nameSpan.textContent = player.name;
+
+                const scoreSpan = document.createElement('span');
+                scoreSpan.classList.add('player-score');
+                scoreSpan.textContent = player.score;
+
+                listItem.appendChild(nameSpan);
+                listItem.appendChild(scoreSpan);
+                leaderboardList.appendChild(listItem);
+            });
+        }
+
+        updateLeaderboardDisplay([]);
+    </script>
+</body>
+    </html>
